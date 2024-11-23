@@ -48,15 +48,10 @@ http://localhost:8080
 ```
 smartbulb/
 │
-├── app.py                 # Main server application
+├── smart_bulb_server.py                 # Main server application
 ├── templates/
-│   └── index.html        # Web interface
-├── attacks/
-│   ├── basic.bat         # Basic attack scripts
-│   └── advanced.ps1      # Advanced attack scripts
-├── docs/
-│   └── worksheet.md      # Student worksheet
-└── README.md             # This file
+   └── index.html        # Web interface
+
 ```
 
 ## 💻 Features
