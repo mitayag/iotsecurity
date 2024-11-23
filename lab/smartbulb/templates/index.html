@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Smart Bulb Simulator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #f0f0f0;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .bulb-container {
+            width: 200px;
+            height: 300px;
+            margin: 20px auto;
+            position: relative;
+        }
+        .controls {
+            text-align: center;
+            margin: 20px 0;
+        }
+        .status {
+            margin-top: 20px;
+            padding: 10px;
+            background: #f8f8f8;
+            border-radius: 5px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+            background: #007bff;
+            color: white;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .slider-container {
+            margin: 20px 0;
+            text-align: center;
+        }
+        .slider-container label {
+            display: inline-block;
+            width: 100px;
+            text-align: right;
+            margin-right: 10px;
+        }
+        input[type="range"] {
+            width: 200px;
+            vertical-align: middle;
+        }
+        input[type="color"] {
+            width: 50px;
+            height: 30px;
+            vertical-align: middle;
+        }
+        #debugConsole {
+            margin-top: 20px;
+            padding: 10px;
+            background: #333;
+            color: #00ff00;
+            font-family: monospace;
+            height: 100px;
+            overflow-y: auto;
+            border-radius: 5px;
+        }
+        .power-indicator {
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .power-indicator.on {
+            color: #28a745;
+        }
+        .power-indicator.off {
+            color: #dc3545;
+        }
+        #attackAlert {
+            background: #dc3545;
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            display: none;
+            text-align: center;
+            font-weight: bold;
+        }
+        .status-item {
+            display: inline-block;
+            margin: 0 10px;
+            text-align: center;
+        }
+        .status-item h3 {
+            margin: 5px 0;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>IoT Smart Bulb Simulator</h1>
+        
+        <div id="attackAlert">Attack Detected!</div>
+        
+        <div class="bulb-container">
+            <svg viewBox="0 0 100 160" width="100%" height="100%">
+                <!-- Bulb Glass -->
+                <path id="bulbGlass" d="M30 80 Q30 100 50 120 Q70 100 70 80 Q70 60 50 40 Q30 60 30 80" 
+                      fill="#ffffff" stroke="#666" stroke-width="2"/>
+                
+                <!-- Bulb Base -->
+                <path d="M40 120 H60 V140 H40 Z" fill="#444"/>
+                <path d="M35 140 H65 V145 H35 Z" fill="#333"/>
+                <path d="M38 145 H62 V150 H38 Z" fill="#444"/>
+                
+                <!-- Inner Glow -->
+                <path id="innerGlow" d="M30 80 Q30 100 50 120 Q70 100 70 80 Q70 60 50 40 Q30 60 30 80"
+                      fill="url(#bulbGradient)" style="opacity: 0"/>
+                
+                <defs>
+                    <radialGradient id="bulbGradient">
+                        <stop offset="0%" stop-color="white"/>
+                        <stop offset="100%" stop-color="yellow"/>
+                    </radialGradient>
+                </defs>
+            </svg>
+        </div>
+
+        <div class="power-indicator" id="powerStatus">OFF</div>
+        
+        <div class="controls">
+            <button onclick="togglePower()">Power Toggle</button>
+            <button onclick="factoryReset()">Factory Reset</button>
+        </div>
+        
+        <div class="slider-container">
+            <label>Brightness: </label>
+            <input type="range" min="0" max="100" value="50" id="brightnessSlider" 
+                   oninput="updateBrightness(this.value)">
+            <span id="brightnessValue">50%</span>
+        </div>
+        
+        <div class="slider-container">
+            <label>Color: </label>
+            <input type="color" id="colorPicker" value="#FFEB3B" 
+                   oninput="updateColor(this.value)">
+        </div>
+        
+        <div class="status">
+            <div class="status-item">
+                <h3>Device ID</h3>
+                <div id="deviceId">{{ device_id }}</div>
+            </div>
+            <div class="status-item">
+                <h3>Firmware</h3>
+                <div>{{ firmware_version }}</div>
+            </div>
+            <div class="status-item">
+                <h3>Connection</h3>
+                <div id="connectionStatus">Connected</div>
+            </div>
+        </div>
+        
+        <div id="debugConsole">
+            > Device initialized
+        </div>
+    </div>
+
+    <script>
+        // Connect to WebSocket
+        const socket = io();
+        let lastUpdate = Date.now();
+        let powerOn = false;
+        let brightness = 50;
+        let color = "#FFEB3B";
+
+        // Update bulb state when receiving updates
+        socket.on('state_update', function(state) {
+            updateBulbVisualization(state);
+            updateControlsFromState(state);
+            logDebug(`State updated: Power=${state.power}, Brightness=${state.brightness}, Color=${state.color}`);
+            
+            // Show attack alert if updates are too frequent
+            const now = Date.now();
+            if (now - lastUpdate < 1000) {
+                showAttackAlert();
+            }
+            lastUpdate = now;
+        });
+
+        function updateBulbVisualization(state) {
+            const innerGlow = document.getElementById('innerGlow');
+            const powerStatus = document.getElementById('powerStatus');
+            const bulbGlass = document.getElementById('bulbGlass');
+            
+            if (state.power) {
+                innerGlow.style.opacity = state.brightness / 100;
+                innerGlow.style.fill = state.color;
+                powerStatus.textContent = 'ON';
+                powerStatus.className = 'power-indicator on';
+                bulbGlass.style.fill = state.color;
+            } else {
+                innerGlow.style.opacity = 0;
+                powerStatus.textContent = 'OFF';
+                powerStatus.className = 'power-indicator off';
+                bulbGlass.style.fill = '#ffffff';
+            }
+        }
+
+        function updateControlsFromState(state) {
+            document.getElementById('brightnessSlider').value = state.brightness;
+            document.getElementById('brightnessValue').textContent = state.brightness + '%';
+            document.getElementById('colorPicker').value = state.color;
+        }
+
+        async function togglePower() {
+            powerOn = !powerOn;
+            await sendCommand('power', { state: powerOn });
+        }
+
+        async function updateBrightness(value) {
+            brightness = parseInt(value);
+            await sendCommand('brightness', { brightness: brightness });
+        }
+
+        async function updateColor(value) {
+            color = value;
+            await sendCommand('color', { color: color });
+        }
+
+        async function factoryReset() {
+            await sendCommand('factory_reset', {});
+        }
+
+        async function sendCommand(endpoint, data) {
+            try {
+                const response = await fetch(`/api/control/${endpoint}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                logDebug(`Command sent: ${endpoint} - Success`);
+            } catch (error) {
+                logDebug(`Error: ${error.message}`);
+            }
+        }
+
+        function showAttackAlert() {
+            const alert = document.getElementById('attackAlert');
+            alert.style.display = 'block';
+            setTimeout(() => {
+                alert.style.display = 'none';
+            }, 2000);
+        }
+
+        function logDebug(message) {
+            const console = document.getElementById('debugConsole');
+            console.innerHTML += `\n> ${message}`;
+            console.scrollTop = console.scrollHeight;
+        }
+
+        // Socket connection status
+        socket.on('connect', () => {
+            document.getElementById('connectionStatus').textContent = 'Connected';
+            logDebug('WebSocket connected');
+        });
+
+        socket.on('disconnect', () => {
+            document.getElementById('connectionStatus').textContent = 'Disconnected';
+            logDebug('WebSocket disconnected');
+        });
+
+        // Initialize controls
+        updateBulbVisualization({
+            power: false,
+            brightness: 50,
+            color: "#FFEB3B"
+        });
+    </script>
+</body>
+</html>
