@@ -33,20 +33,6 @@ This course explores the fundamentals of IoT security, including device security
 - Basic knowledge of Linux commands
 - Understanding of basic cybersecurity concepts
 
-### Required Tools
-1. Hardware
-   - Raspberry Pi (Model 3B+ or newer recommended)
-   - ESP32 Development Board
-   - Various sensors (will be specified in lab instructions)
-   - USB WiFi adapter (for wireless security testing)
-
-2. Software
-   - Kali Linux or Ubuntu (VM or native installation)
-   - Arduino IDE
-   - Wireshark
-   - MQTT Client Tools
-   - Python 3.x and relevant security libraries
-
 ### Lab Exercises
 Each lab folder contains:
 - README with setup instructions
