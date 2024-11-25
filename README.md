@@ -68,10 +68,8 @@ All work submitted must be your own. Please review the university's academic int
 - [IoT Security Foundation](https://www.iotsecurityfoundation.org/)
 
 ### Contact Information
-- Course Instructor: [Your Name]
-- Email: [Your Email]
-- Office Hours: [Schedule]
-- Location: [Room Number]
+- Course Instructor: Marlon I. Tayag
+- Email: lonskee2000@gmail.com
 
 ### License
 This project is licensed under the MIT License - see the LICENSE file for details.
